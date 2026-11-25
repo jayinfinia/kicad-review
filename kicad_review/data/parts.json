@@ -46,6 +46,8 @@
      "require": [{"pin": "^(RS|Rs|S)$", "rule": "connected", "why": "mode-select pin must be tied (to GND for high speed)"}]},
     {"match": "XR22417|XR22404|XR22414", "io_relative": 0.3, "io_rail_pins": "VCC33",
      "source": "MaxLinear XR224xx USB hub: digital I/O referenced to VCC33 (3.3 V); VCC5 only feeds the internal regulator"},
+    {"match": "Raspberry_Pi|RPi_GPIO|Raspberry Pi", "io_voltage_max": 3.6, "connector": true,
+     "source": "Raspberry Pi GPIO is 3.3 V logic and not 5 V tolerant (raspberrypi.com hardware docs)"},
     {"match": "ESP32", "io_voltage_max": 3.6, "source": "Espressif ESP32 datasheets: I/O not 5 V tolerant",
      "require": [{"pin": "^(EN|CHIP_PU)$", "rule": "high", "why": "EN low holds the chip in reset; use RC pull-up"}]}
   ]

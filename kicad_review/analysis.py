@@ -8,7 +8,7 @@ from .netlist import Component, Design, Pin
 
 _GND_RE = re.compile(r"^(GND\w*|\w*GND|VSS\w*|0V|EARTH|COM|AGND|DGND|PGND)$", re.I)
 _PWR_RE = re.compile(r"^([+-]\d+(\.\d+)?V\d*|[+-]?\d+V\d+|VCC\w*|VDD\w*|VBUS\w*|VBAT\w*|VIN\w*|V\+|VEE\w*|"
-                     r"\+?VPP\w*|VAA\w*|AVDD\w*|DVDD\w*|IOVDD\w*|VIO\w*|VREF\w*|VSYS\w*|\+?\d+V\d*_\w+)$", re.I)
+                     r"\+?VPP\d*|VAA\w*|AVDD\w*|DVDD\w*|IOVDD\w*|VIO\w*|VREF\w*|VSYS\w*|\+?\d+V\d*_\w+)$", re.I)
 _SUPPLY_PIN_RE = re.compile(r"^(V(CC|DD|BAT|BUS|IN|IO|DDA|DDIO|CCA|CCIO|CCINT|CCAUX|\+)\w*|AVDD\w*|DVDD\w*|IOVDD\w*|V\d\w*|PWR\w*|[+]?\d+V\d*)$", re.I)
 _GND_PIN_RE = re.compile(r"^(GND\w*|\w*GND|VSS\w*|AGND|DGND|PGND|EP|PAD|0V)$", re.I)
 
@@ -68,8 +68,13 @@ def is_resistor(c: Component) -> bool:
 _CONNECTOR_PREFIXES = ("J", "P", "CONN", "X", "BUS", "CN", "SLOT")
 
 
+_CONNECTOR_FP = re.compile(r"(Connector|PinHeader|PinSocket|Dsub|D-?SUB|USB_|Header|TerminalBlock|JST|Molex|"
+                           r"IDC|BNC|SMA_|U\.FL|Jack|Banana|TestPoint)", re.I)
+
+
 def is_connector(c: Component) -> bool:
-    return c.prefix in _CONNECTOR_PREFIXES or "conn" in c.lib.lower() or "conn" in c.part.lower()
+    return c.prefix in _CONNECTOR_PREFIXES or c.prefix == "TP" or "conn" in c.lib.lower() \
+        or "conn" in c.part.lower() or (c.prefix not in ("U", "IC") and bool(_CONNECTOR_FP.search(c.footprint or "")))
 
 
 def is_ic(c: Component) -> bool:

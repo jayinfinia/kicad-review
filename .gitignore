@@ -5,3 +5,4 @@ __pycache__/
 examples/netlists/
 eval/variants*/
 eval/results_*.json
+examples/heldout_netlists/

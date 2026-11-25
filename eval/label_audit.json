@@ -1,0 +1,6 @@
+{
+  "_doc": "Seeded variants reviewed by hand and judged NOT to be defects. They are reported separately and left out of the audited score. Each entry needs a reason a reviewer can check.",
+  "excluded": {
+    "stack-chan_stack-chan_m5-pantilt__pullup_wrong_rail__1": "R8 biases the RS-485 B line of a MAX3485. RS-485 A/B pins are rated for a -7 V to +12 V common-mode range, so biasing to +5 V instead of +3.3 V is not an over-voltage defect."
+  }
+}

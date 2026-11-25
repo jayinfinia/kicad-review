@@ -170,7 +170,12 @@ def _pullups(d: Design):
         a, b = list(c.pins.values())
         for sig, far in ((a, b), (b, a)):
             if is_power(far.net) and real_net(d, sig) and not is_power(sig.net) and not is_ground(sig.net) \
-                    and any(is_ic(d.components[p.ref]) for p in d.pins_on(sig.net) if p.ref != c.ref):
+                    and any(is_ic(d.components[p.ref]) for p in d.pins_on(sig.net) if p.ref != c.ref) \
+                    and not any(p.base_type in ("output", "tri_state", "power_out")
+                                or (is_ic(d.components[p.ref]) and p.base_type in ("passive", "unspecified"))
+                                for p in d.pins_on(sig.net)):
+                # Label hygiene: with a push-pull or tri-state driver on the net the pull-up is not
+                # load-bearing, so removing or flipping it is not a defect a reviewer could call.
                 yield c, sig, far
 
 
@@ -186,10 +191,20 @@ def sites_remove_pullup(d: Design):
     return out
 
 
+_IDLE_HIGH = re.compile(r"(^~|^/|^!|^n[A-Z]|#$|_[Nn]$|-$|RESET|RST|^CS$|^OE$|^WE$|IRQ|INT$|^WP$|HOLD)", re.I)
+
+
 def sites_pullup_to_ground(d: Design):
+    """Flip a pull-up into a pull-down on an active-low control input (reset, chip select, IRQ...).
+    Flipping a generic mode strap is a configuration change, not a defect, so those are excluded."""
     out = []
     g = ground_net(d)
     for c, sig, far in _pullups(d):
+        names = [p.name or "" for p in d.pins_on(sig.net) if is_ic(d.components[p.ref])]
+        leafname = sig.net.rsplit("/", 1)[-1]
+        if not any(_IDLE_HIGH.search(n.replace("~{", "~")) for n in names) and \
+                (leafname.startswith("Net-(") or not _IDLE_HIGH.search(leafname)):
+            continue
         def apply(d, ref=c.ref, num=far.num, net=sig.net, g=g):
             pin = d.components[ref].pins[num]
             old = pin.net
@@ -255,6 +270,9 @@ def sites_short_led_resistor(d: Design):
                 r = d.components.get(q.ref)
                 if r is None or not is_resistor(r) or len(d.pins_on(p.net)) != 2:
                     continue  # only a resistor that is the LED's sole series partner on that net
+                far_net = [x for x in r.pins.values() if x.net != p.net][0].net
+                if any(is_resistor(d.components[x.ref]) for x in d.pins_on(far_net) if x.ref != r.ref):
+                    continue  # another resistor on the far side still limits the current: not a defect
 
                 def apply(d, led=c.ref, res=r.ref, net=p.net):
                     rc = d.components[res]

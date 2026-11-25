@@ -17,6 +17,16 @@ from . import sexpr
 from .sexpr import QStr, find, find_all, value
 
 
+# KiCad 5 netlists spell electrical types differently from KiCad 6+.
+_LEGACY_TYPES = {"BiDi": "bidirectional", "3state": "tri_state", "openCol": "open_collector",
+                 "openEm": "open_emitter", "unspc": "unspecified", "NotConnected": "no_connect",
+                 "UnSpc": "unspecified"}
+
+
+def norm_type(t: str) -> str:
+    return _LEGACY_TYPES.get(t, t) if t else t
+
+
 @dataclass
 class Pin:
     ref: str
@@ -105,7 +115,7 @@ def parse(text: str, name: str = "design") -> Design:
     for lp in find_all(libs, "libpart"):
         key = (value(lp, "lib", ""), value(lp, "part", ""))
         pins = find(lp, "pins") or []
-        libpins[key] = [(value(p, "num", ""), value(p, "name", ""), value(p, "type", ""))
+        libpins[key] = [(value(p, "num", ""), value(p, "name", ""), norm_type(value(p, "type", "")))
                         for p in find_all(pins, "pin")]
 
     for c in find_all(find(root, "components") or [], "comp"):
@@ -133,7 +143,7 @@ def parse(text: str, name: str = "design") -> Design:
                 if comp:
                     comp.pins[num] = pin
             pin.name = value(node, "pinfunction", pin.name) or pin.name
-            pin.type = value(node, "pintype", pin.type) or pin.type
+            pin.type = norm_type(value(node, "pintype", pin.type)) or pin.type
             pin.net = net.name
             net.nodes.append(pin)
         d.nets[net.name] = net

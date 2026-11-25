@@ -49,8 +49,19 @@ def fkey(f):
     return (f.rule, f.message) if f.source == "rules" else ("llm", tuple(sorted(f.refs)), tuple(sorted(f.nets)), f.category)
 
 
-def hits(f, label) -> bool:
+def hits(f, label, design=None) -> bool:
+    """A finding is about the seeded bug if it names one of its refs or nets, or a net one resistor
+    away from them (the same bias network seen from another pin)."""
     nets = {leaf(n) for n in label["nets"]} | set(label["nets"])
+    if design is not None:
+        from kicad_review.analysis import is_ground, is_power, is_resistor, other_pin
+        for n in list(label["nets"]):
+            for p in design.pins_on(n):
+                c = design.components.get(p.ref)
+                if c and is_resistor(c):
+                    o = other_pin(c, p)
+                    if o and o.net and not is_power(o.net) and not is_ground(o.net):
+                        nets |= {o.net, leaf(o.net)}
     return bool(set(f.refs) & set(label["refs"])) or bool({leaf(n) for n in f.nets} & nets)
 
 
@@ -70,6 +81,8 @@ def main(argv=None):
         seen = defaultdict(int)
         manifest = [m for m in manifest if (seen.__setitem__(m["bug"], seen[m["bug"]] + 1) or seen[m["bug"]]) <= a.limit]
 
+    audit_path = Path(__file__).with_name("label_audit.json")
+    excluded = json.loads(audit_path.read_text())["excluded"] if audit_path.exists() else {}
     cache, rows = {}, []
     tokens = defaultdict(int)
     t0 = time.time()
@@ -81,15 +94,20 @@ def main(argv=None):
                 tokens[k] += u.get(k, 0)
         base_keys = {fkey(f) for f in base}
         new = [f for f in var if fkey(f) not in base_keys and f.severity in sev_ok]
-        good = [f for f in new if hits(f, m)]
+        vd = netlist.load(str(Path(a.variants) / f"{m['id']}.net"))
+        good = [f for f in new if hits(f, m, vd)]
         rows.append({"id": m["id"], "bug": m["bug"], "detail": m["detail"], "detected": bool(good),
+                     "excluded": excluded.get(m["id"]),
                      "new_findings": len(new), "unrelated_new": len(new) - len(good),
                      "matched": [f"{f.rule}: {f.message}" for f in good][:3],
                      "unmatched": [f"{f.rule}: {f.message}" for f in new if f not in good][:3]})
         print(f"{'✓' if good else '✗'} {m['id']:55s} {m['detail'][:80]}")
 
     by = defaultdict(lambda: [0, 0, 0, 0])
+    raw_n, raw_det = len(rows), sum(r["detected"] for r in rows)
     for r in rows:
+        if r["excluded"]:
+            continue
         b = by[r["bug"]]
         b[0] += 1
         b[1] += r["detected"]
@@ -108,6 +126,10 @@ def main(argv=None):
         lines.append(f"| {bug} | {n} | {det} | {det / n:.0%} | {unrel} |")
     lines.append(f"| **all** | **{total[0]}** | **{total[1]}** | **{total[1] / total[0]:.0%}** | **{total[3]}** |")
     prec = total[2] / (total[2] + total[3]) if (total[2] + total[3]) else 0
+    n_ex = sum(1 for r in rows if r["excluded"])
+    if n_ex:
+        lines += ["", f"{n_ex} variant(s) excluded after hand review as not real defects (eval/label_audit.json). "
+                  f"Raw score including them: {raw_det}/{raw_n} ({raw_det / raw_n:.0%})."]
     lines += ["", f"Precision of new findings (point at the seeded bug): {prec:.0%} "
               f"({total[2]} of {total[2] + total[3]})", "",
               "Findings on the unmodified designs (not scored; may be real issues or false positives): "
