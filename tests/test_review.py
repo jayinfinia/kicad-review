@@ -29,7 +29,29 @@ def test_parse_value(s, v):
 def test_demo_board_rules():
     d = netlist.load(DEMO)
     rules = {f.rule for f in checks.run_all(d)}
-    assert {"floating-input", "unconnected-power-pin", "missing-decoupling", "pullup-wrong-rail"} <= rules
+    # all six planted bugs, without any LLM
+    assert {"floating-input", "unconnected-power-pin", "missing-decoupling", "bias-overvoltage",
+            "led-no-current-limit", "crystal-no-load-caps", "part-strap"} <= rules
+
+
+def test_dc_bias_divider_and_floating():
+    from kicad_review import dcbias
+    d = netlist.load(DEMO)
+    b = dcbias.solve(d)
+    assert b["/RESET"].volts == pytest.approx(3.3) and b["/RESET"].r_thevenin == pytest.approx(10e3)
+    assert b["/SDA"].volts == pytest.approx(5.0)
+    assert b["/XTAL1"].volts is None  # no resistive path to a rail
+    # add 1k from /RESET to GND: 10k/1k divider -> 0.3 V via 909 Ohm, MCU held in reset
+    from kicad_review.netlist import Component, Pin
+    r = Component("R99", "1k", lib="Device", part="R")
+    for num, net in (("1", "/RESET"), ("2", "GND")):
+        pin = Pin("R99", num, "~", "passive", net)
+        r.pins[num] = pin
+        d.nets[net].nodes.append(pin)
+    d.components["R99"] = r
+    b = dcbias.solve(d)
+    assert b["/RESET"].volts == pytest.approx(0.3) and b["/RESET"].r_thevenin == pytest.approx(1e4 / 11)
+    assert any(f.rule == "part-strap" and "RESET" in f.message for f in checks.run_all(d))
 
 
 def test_roundtrip():

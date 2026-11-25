@@ -2,12 +2,12 @@
 with deliberately planted mistakes, used for the README walkthrough.
 
 Planted bugs (ground truth):
-  1. LDO U1 has no input capacitor on +5V                         (rules: missing-decoupling)
-  2. ATmega328P AVCC (U2.18) left unconnected                      (rules: unconnected-power-pin)
-  3. BME280 CSB (U3.2) floating; must be tied to VDDIO for I2C     (rules: floating-input)
-  4. I2C pull-ups R2/R3 go to +5V, BME280 is a 3.6 V-max part      (rules: pullup-wrong-rail)
-  5. LED D1 driven from PB5 with no series resistor                (LLM only)
-  6. 16 MHz crystal Y1 has no load capacitors                      (LLM only)
+  1. LDO U1 has no input capacitor on +5V                         (missing-decoupling, part-missing-cap)
+  2. ATmega328P AVCC (U2.18) left unconnected                      (unconnected-power-pin, part-pin-unconnected)
+  3. BME280 CSB (U3.2) floating; must be tied to VDDIO for I2C     (floating-input, part-strap)
+  4. I2C pull-ups R2/R3 go to +5V on 3.3 V parts                   (bias-overvoltage via the DC solver)
+  5. LED D1 driven from PB5 with no series resistor                (led-no-current-limit)
+  6. 16 MHz crystal Y1 has no load capacitors                      (crystal-no-load-caps)
 """
 from pathlib import Path
 

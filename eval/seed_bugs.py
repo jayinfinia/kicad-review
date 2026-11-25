@@ -244,6 +244,47 @@ def sites_cap_undervoltage(d: Design):
     return out
 
 
+def sites_short_led_resistor(d: Design):
+    """Replace the series resistor of an LED with a wire (the 'forgot the resistor' bug)."""
+    out = []
+    for c in d.components.values():
+        if "LED" not in re.split(r"[_\-\s]", (c.part or "").upper()) or len(c.pins) != 2:
+            continue
+        for p in c.pins.values():
+            for q in d.pins_on(p.net):
+                r = d.components.get(q.ref)
+                if r is None or not is_resistor(r) or len(d.pins_on(p.net)) != 2:
+                    continue  # only a resistor that is the LED's sole series partner on that net
+
+                def apply(d, led=c.ref, res=r.ref, net=p.net):
+                    rc = d.components[res]
+                    far = [x for x in rc.pins.values() if x.net != net][0].net
+                    remove_component(d, res)
+                    for x in list(d.nets[net].nodes):
+                        move_pin(d, x, far)
+                    return {"category": "power", "refs": [led, res], "nets": [far, net],
+                            "detail": f"series resistor {res} of LED {led} replaced by a wire ({net} merged into {far})"}
+                out.append(apply)
+    return out
+
+
+def sites_remove_crystal_caps(d: Design):
+    out = []
+    for c in d.components.values():
+        if not (c.prefix in ("Y", "X") and re.search(r"crystal|xtal", c.part + c.description, re.I)):
+            continue
+        nets = [p.net for p in c.pins.values() if p.net and not is_ground(p.net) and not is_unconnected(p.net)]
+        caps = sorted({q.ref for n in nets for q in d.pins_on(n) if is_capacitor(d.components[q.ref])})
+        if len(nets) == 2 and caps:
+            def apply(d, x=c.ref, caps=caps, nets=nets):
+                for cap in caps:
+                    remove_component(d, cap)
+                return {"category": "other", "refs": [x], "nets": nets,
+                        "detail": f"removed crystal {x} load capacitors {', '.join(caps)}"}
+            out.append(apply)
+    return out
+
+
 BUG_TYPES = {
     "remove_decoupling": sites_remove_decoupling,
     "float_input": sites_float_input,
@@ -254,6 +295,8 @@ BUG_TYPES = {
     "pullup_to_ground": sites_pullup_to_ground,
     "pullup_wrong_rail": sites_pullup_wrong_rail,
     "cap_undervoltage": sites_cap_undervoltage,
+    "short_led_resistor": sites_short_led_resistor,
+    "remove_crystal_caps": sites_remove_crystal_caps,
 }
 
 

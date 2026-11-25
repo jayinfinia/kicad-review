@@ -81,6 +81,12 @@ def render_design(d: Design, max_net_pins: int = 40) -> str:
             pins = ic_pins + [f"+ passives: {' '.join(passives)}",
                               f"+ {len(net.nodes) - len(ic_pins) - len(passives)} other pins"]
         lines.append(f"{n}: " + ", ".join(pins))
+    from . import dcbias
+    biased = [(n, b) for n, b in sorted(dcbias.solve(d).items())
+              if not b.fixed and b.volts is not None and not is_unconnected(n)]
+    if biased:
+        lines += ["", "## Solved DC idle voltage of resistor-biased nets (nodal analysis; 'driven' = an output can override)"]
+        lines += [f"{n}: {b.describe()}{' driven' if b.driven else ''}" for n, b in biased]
     unc = [p for c in d.components.values() for p in c.pins.values() if is_unconnected(p.net)]
     if unc:
         lines += ["", "## Pins with no connection",

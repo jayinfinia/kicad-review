@@ -235,32 +235,7 @@ def check_pullups(d: Design) -> list[Finding]:
                                        f"I2C pull-up {r} on {n} is {fmt_value(v)}Ω; typical range is 1k–10k "
                                        "(too high: slow edges; too low: exceeds 3 mA sink)",
                                        refs=[r], nets=[n]))
-        # Pull-up rail higher than the supply of an IC on the net (e.g. 5 V pull-up on a 3.3 V part).
-        for r, v, far in ups:
-            vr = rail_voltage(far)
-            if vr is None:
-                continue
-            for p in ic_pins:
-                if p.base_type not in ("input", "bidirectional", "open_collector", "tri_state"):
-                    continue
-                vs_all = [rail_voltage(s) for s in ic_supply_rails(d, d.components[p.ref])]
-                vs_all = [x for x in vs_all if x is not None and x > 0]
-                if vs_all and vr > max(vs_all) + 0.3:
-                    out.append(Finding("pullup-wrong-rail", "pullup", "error",
-                                       f"{r} pulls {n} up to {far} ({vr:g} V) but {p.label()} is powered from "
-                                       f"{max(vs_all):g} V; pin may be overdriven unless it is tolerant",
-                                       refs=[r, p.ref], nets=[n, far]))
-                    break
-
-        # Active-low input (RESET#, ~{CS}, nEN...) held asserted by a pull-down with nothing else driving it.
-        low = [p for p in ic_pins if p.base_type == "input" and _ACTIVE_LOW_RE.search(p.name or "")]
-        drivers = [p for p in net.nodes if p.base_type in ("output", "bidirectional", "tri_state", "open_collector",
-                                                           "power_out")]
-        if low and downs and not ups and not drivers:
-            out.append(Finding("active-low-pulled-down", "pullup", "warning",
-                               f"Active-low input(s) {', '.join(p.label() for p in low)} on {n} are pulled to ground "
-                               f"by {', '.join(r for r, _, _ in downs)} with no driver: held permanently asserted",
-                               refs=sorted({p.ref for p in low}) + [r for r, _, _ in downs], nets=[n]))
+        # Pull-up to a too-high rail and active-low pins held low: see checks_physics (DC bias solve).
 
         oc = [p for p in net.nodes if p.base_type == "open_collector"]
         if oc and not ups and not any(p.base_type in ("open_emitter", "output", "power_out") for p in net.nodes):
@@ -283,9 +258,12 @@ def check_pullups(d: Design) -> list[Finding]:
 ALL_CHECKS = [check_unconnected_pins, check_power_pin_nets, check_rails, check_decoupling, check_pullups]
 
 
-def run_all(d: Design) -> list[Finding]:
+def run_all(d: Design, physics: bool = True) -> list[Finding]:
     out = []
     for chk in ALL_CHECKS:
         out.extend(chk(d))
+    if physics:
+        from . import checks_physics
+        out.extend(checks_physics.run(d))
     order = {s: i for i, s in enumerate(SEVERITIES)}
     return sorted(out, key=lambda f: (order[f.severity], f.category, f.rule, f.message))

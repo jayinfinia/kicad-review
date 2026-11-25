@@ -33,6 +33,8 @@ def findings_for(path: str, mode: str, model: str | None, cache: dict):
     usage = {}
     if mode == "rules":
         fs = rules
+    elif mode == "rules-basic":
+        fs = checks.run_all(d, physics=False)
     else:
         from kicad_review import llm
         given = rules if mode == "hybrid" else []
@@ -55,7 +57,7 @@ def hits(f, label) -> bool:
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--variants", default="eval/variants")
-    ap.add_argument("--mode", choices=["rules", "llm-only", "hybrid"], default="rules")
+    ap.add_argument("--mode", choices=["rules", "rules-basic", "llm-only", "hybrid"], default="rules")
     ap.add_argument("--model", default=None)
     ap.add_argument("--limit", type=int, default=0, help="first N per bug type (LLM runs cost money)")
     ap.add_argument("--min-severity", choices=["error", "warning", "info"], default="warning")

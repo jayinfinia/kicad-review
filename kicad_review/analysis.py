@@ -58,7 +58,7 @@ def ground_pin_name(name: str) -> bool:
 # ---- component classification ------------------------------------------------------
 
 def is_capacitor(c: Component) -> bool:
-    return c.prefix in ("C", "CP") and len(c.pins) == 2
+    return c.prefix in ("C", "CP", "CV", "CT", "CE", "CA") and len(c.pins) == 2
 
 
 def is_resistor(c: Component) -> bool:

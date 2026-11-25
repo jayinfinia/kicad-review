@@ -1,0 +1,52 @@
+{
+  "_doc": "Datasheet-derived constraints, matched by regex against a component's value or library part name. Pin regexes match KiCad pin names. Fields: io_voltage_max (abs-max on signal pins, V), io_relative (true: limit is the IC's own I/O rail + this margin instead), internal_pullups (pins that may be left floating), internal_load_caps (crystal needs no external load caps), open_drain (pins that need an external pull-up), require (list of {pin, rule: connected|high|low|cap_to_gnd, min_uF, why}). 'source' cites where each number comes from.",
+  "parts": [
+    {"match": "BME280|BMP280", "io_voltage_max": 4.25, "source": "Bosch BME280 datasheet, abs max VDDIO / pins 4.25 V",
+     "require": [
+       {"pin": "^CSB$", "rule": "high", "why": "CSB low at power-up latches SPI mode; tie to VDDIO for I2C"},
+       {"pin": "^SDO$", "rule": "connected", "why": "SDO sets the I2C address bit; it must not float"},
+       {"pin": "^VDDIO$", "rule": "cap_to_gnd", "min_uF": 0.1, "why": "100 nF on VDDIO"},
+       {"pin": "^VDD$", "rule": "cap_to_gnd", "min_uF": 0.1, "why": "100 nF on VDD"}]},
+    {"match": "ATmega(48|88|168|328)", "io_relative": 0.5, "internal_pullups": "RESET",
+     "source": "Microchip ATmega328P datasheet: pins VCC+0.5 V abs max; RESET has internal pull-up",
+     "require": [
+       {"pin": "^AVCC$", "rule": "connected", "why": "AVCC must be connected to VCC even if the ADC is unused"},
+       {"pin": "RESET", "rule": "high", "why": "RESET low holds the MCU in reset"}]},
+    {"match": "STM32", "io_relative": 0.3, "internal_pullups": "NRST",
+     "source": "ST STM32 datasheets: BOOT0 selects boot memory, NRST has internal pull-up, VDDA must be powered",
+     "require": [
+       {"pin": "^BOOT0", "rule": "low", "why": "BOOT0 high boots the system bootloader instead of flash"},
+       {"pin": "^VDDA$", "rule": "connected", "why": "VDDA must be powered even if the ADC is unused"},
+       {"pin": "^VCAP", "rule": "cap_to_gnd", "min_uF": 2.2, "why": "internal regulator needs a VCAP capacitor"}]},
+    {"match": "AP2112", "source": "Diodes AP2112 datasheet: 1 uF input and output capacitors",
+     "require": [
+       {"pin": "^VIN$", "rule": "cap_to_gnd", "min_uF": 1.0, "why": "input capacitor for LDO stability"},
+       {"pin": "^VOUT$", "rule": "cap_to_gnd", "min_uF": 1.0, "why": "output capacitor for LDO stability"},
+       {"pin": "^EN$", "rule": "high", "why": "EN low disables the regulator"}]},
+    {"match": "^(LM|MC|L|UA)?78(L|M)?\\d\\d|^7805$|^78L05$", "source": "LM78xx datasheets: 0.33 uF in, 0.1 uF out",
+     "require": [
+       {"pin": "^(VI|IN|VIN|I)$", "rule": "cap_to_gnd", "min_uF": 0.1, "why": "input capacitor, needed when far from the filter cap"},
+       {"pin": "^(VO|OUT|VOUT|O)$", "rule": "cap_to_gnd", "min_uF": 0.1, "why": "output capacitor improves transient response"}]},
+    {"match": "AMS1117|LM1117", "source": "AMS1117 datasheet: 10 uF tantalum on input and output",
+     "require": [
+       {"pin": "^(VI|IN|VIN)$", "rule": "cap_to_gnd", "min_uF": 10, "why": "input capacitor"},
+       {"pin": "^(VO|OUT|VOUT)$", "rule": "cap_to_gnd", "min_uF": 10, "why": "output capacitor required for stability"}]},
+    {"match": "LT1129", "source": "LT1129 datasheet: 3.3 uF minimum output capacitor for stability",
+     "require": [{"pin": "^(OUT|OUTPUT|VOUT)$", "rule": "cap_to_gnd", "min_uF": 3.3, "why": "output capacitor required for stability"}]},
+    {"match": "24C\\d|24Cxx|24LC|AT24", "open_drain": "^SDA$", "source": "24Cxx EEPROM datasheets: SDA is open-drain",
+     "require": [{"pin": "^WP$", "rule": "connected", "severity": "warning", "why": "WP floating may enable write protect on some vendors' parts"}]},
+    {"match": "^74HC(?!T)", "io_relative": 0.5, "source": "74HC family: inputs VCC+0.5 V abs max, CMOS inputs must not float"},
+    {"match": "^74(LVC|AUP|LVT)", "io_voltage_max": 6.5, "source": "74LVC: 5 V tolerant inputs (abs max 6.5 V)"},
+    {"match": "^74AHC(?!T)", "io_voltage_max": 7.0, "source": "74AHC: inputs tolerate up to 7 V regardless of VCC"},
+    {"match": "MAX20[2-3]|MAX232|MAX3232|ICL3232", "source": "MAX232 family: charge-pump capacitors on V+ and V-",
+     "require": [
+       {"pin": "^V\\+$", "rule": "cap_to_gnd", "min_uF": 0.1, "why": "V+ charge-pump reservoir capacitor"},
+       {"pin": "^V-$", "rule": "cap_to_gnd", "min_uF": 0.1, "why": "V- charge-pump reservoir capacitor"}]},
+    {"match": "82C251|82C250|TJA1050|SN65HVD23", "source": "CAN transceiver datasheets: Rs/S selects slope or standby mode",
+     "require": [{"pin": "^(RS|Rs|S)$", "rule": "connected", "why": "mode-select pin must be tied (to GND for high speed)"}]},
+    {"match": "XR22417|XR22404|XR22414", "io_relative": 0.3, "io_rail_pins": "VCC33",
+     "source": "MaxLinear XR224xx USB hub: digital I/O referenced to VCC33 (3.3 V); VCC5 only feeds the internal regulator"},
+    {"match": "ESP32", "io_voltage_max": 3.6, "source": "Espressif ESP32 datasheets: I/O not 5 V tolerant",
+     "require": [{"pin": "^(EN|CHIP_PU)$", "rule": "high", "why": "EN low holds the chip in reset; use RC pull-up"}]}
+  ]
+}
