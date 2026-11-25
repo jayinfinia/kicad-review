@@ -1,0 +1,7 @@
+__pycache__/
+*.egg-info/
+.pytest_cache/
+# generated from KiCad's demo projects (see examples/export_kicad_demos.sh, eval/seed_bugs.py)
+examples/netlists/
+eval/variants*/
+eval/results_*.json

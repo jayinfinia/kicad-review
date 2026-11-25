@@ -1,0 +1,19 @@
+[project]
+name = "kicad-review"
+version = "0.1.0"
+description = "Schematic design review for KiCad: netlist rule checks plus a Claude review pass"
+requires-python = ">=3.10"
+dependencies = ["anthropic>=0.80", "pydantic>=2"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+kicad-review = "kicad_review.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["kicad_review"]
